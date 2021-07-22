@@ -2,6 +2,7 @@ use near_sdk_sim::{
     deploy, init_simulator, to_yocto, call, view,
     ContractAccount, UserAccount, DEFAULT_GAS
   };
+use near_sdk::{ json_types::U128 };
 
 near_sdk_sim::lazy_static_include::lazy_static_include_bytes! {
     TOKEN_WASM_BYTES => "res/token_contract.wasm",
@@ -76,21 +77,21 @@ fn send_deposit() {
 
     call!(
         root,
-        token.create_value(alice.account_id(), 100.0)
+        token.create_value(alice.account_id(), U128(100))
     )
     .assert_success();
 
-    let outcome: f64 = view!(token.get_balance(alice.account_id())).unwrap_json();
-    assert_eq!(outcome, 100.0);
+    let outcome: U128 = view!(token.get_balance(alice.account_id())).unwrap_json();
+    assert_eq!(u128::from(outcome), 100);
 
     call!(
         alice,
-        token.deposit(bank.account_id(), 100.0)
+        token.deposit(bank.account_id(), U128(100))
     )
     .assert_success();
 
-    let outcome: f64 = view!(bank.get_balance((token.account_id(), alice.account_id()))).unwrap_json();
-    assert_eq!(outcome, 100.0);
+    let outcome: U128 = view!(bank.get_balance((token.account_id(), alice.account_id()))).unwrap_json();
+    assert_eq!(u128::from(outcome), 100);
 }
 
 #[test]
@@ -100,23 +101,23 @@ fn invalid_send_deposit() {
 
     call!(
         root,
-        token.create_value(alice.account_id(), 100.0)
+        token.create_value(alice.account_id(), U128(100))
     )
     .assert_success();
 
-    let outcome: f64 = view!(token.get_balance(alice.account_id())).unwrap_json();
-    assert_eq!(outcome, 100.0);
+    let outcome: U128 = view!(token.get_balance(alice.account_id())).unwrap_json();
+    assert_eq!(u128::from(outcome), 100);
 
     call!(
         alice,
-        token.deposit(bank.account_id(), 200.0)
+        token.deposit(bank.account_id(), U128(200))
     )
     .assert_success();
 
-    let outcome: f64 = view!(bank.get_balance((token.account_id(), alice.account_id()))).unwrap_json();
-    assert_eq!(outcome, 0.0);
-    let outcome: f64 = view!(token.get_balance(alice.account_id())).unwrap_json();
-    assert_eq!(outcome, 100.0);
+    let outcome: U128 = view!(bank.get_balance((token.account_id(), alice.account_id()))).unwrap_json();
+    assert_eq!(u128::from(outcome), 0);
+    let outcome: U128 = view!(token.get_balance(alice.account_id())).unwrap_json();
+    assert_eq!(u128::from(outcome), 100);
 }
 
 #[test]
@@ -125,34 +126,34 @@ fn send_withdrawal() {
 
     call!(
         root,
-        token.create_value(alice.account_id(), 100.0)
+        token.create_value(alice.account_id(), U128(100))
     )
     .assert_success();
 
-    let outcome: f64 = view!(token.get_balance(alice.account_id())).unwrap_json();
-    assert_eq!(outcome, 100.0);
+    let outcome: U128 = view!(token.get_balance(alice.account_id())).unwrap_json();
+    assert_eq!(u128::from(outcome), 100);
 
     call!(
         alice,
-        token.deposit(bank.account_id(), 100.0)
+        token.deposit(bank.account_id(), U128(100))
     )
     .assert_success();
 
-    let outcome: f64 = view!(bank.get_balance((token.account_id(), alice.account_id()))).unwrap_json();
-    assert_eq!(outcome, 100.0);
-    let outcome: f64 = view!(token.get_balance(alice.account_id())).unwrap_json();
-    assert_eq!(outcome, 0.0);
+    let outcome: U128 = view!(bank.get_balance((token.account_id(), alice.account_id()))).unwrap_json();
+    assert_eq!(u128::from(outcome), 100);
+    let outcome: U128 = view!(token.get_balance(alice.account_id())).unwrap_json();
+    assert_eq!(u128::from(outcome), 0);
 
     call!(
         alice,
-        token.withdraw(bank.account_id(), 100.0)
+        token.withdraw(bank.account_id(), U128(100))
     )
     .assert_success();
 
-    let outcome: f64 = view!(bank.get_balance((token.account_id(), alice.account_id()))).unwrap_json();
-    assert_eq!(outcome, 0.0);
-    let outcome: f64 = view!(token.get_balance(alice.account_id())).unwrap_json();
-    assert_eq!(outcome, 100.0);
+    let outcome: U128 = view!(bank.get_balance((token.account_id(), alice.account_id()))).unwrap_json();
+    assert_eq!(u128::from(outcome), 0);
+    let outcome: U128 = view!(token.get_balance(alice.account_id())).unwrap_json();
+    assert_eq!(u128::from(outcome), 100);
 }
 
 #[test]
@@ -161,33 +162,33 @@ fn invalid_send_withdrawal() {
 
     call!(
         root,
-        token.create_value(alice.account_id(), 100.0)
+        token.create_value(alice.account_id(), U128(100))
     )
     .assert_success();
 
-    let outcome: f64 = view!(token.get_balance(alice.account_id())).unwrap_json();
-    assert_eq!(outcome, 100.0);
+    let outcome: U128 = view!(token.get_balance(alice.account_id())).unwrap_json();
+    assert_eq!(u128::from(outcome), 100);
 
     call!(
         alice,
-        token.deposit(bank.account_id(), 100.0)
+        token.deposit(bank.account_id(), U128(100))
     )
     .assert_success();
 
-    let outcome: f64 = view!(bank.get_balance((token.account_id(), alice.account_id()))).unwrap_json();
-    assert_eq!(outcome, 100.0);
-    let outcome: f64 = view!(token.get_balance(alice.account_id())).unwrap_json();
-    assert_eq!(outcome, 0.0);
+    let outcome: U128 = view!(bank.get_balance((token.account_id(), alice.account_id()))).unwrap_json();
+    assert_eq!(u128::from(outcome), 100);
+    let outcome: U128 = view!(token.get_balance(alice.account_id())).unwrap_json();
+    assert_eq!(u128::from(outcome), 0);
 
     let res = call!(
         alice,
-        token.withdraw(bank.account_id(), 200.0)
+        token.withdraw(bank.account_id(), U128(200))
     );
 
     assert!(!res.is_ok(), "alice only has 100 tokens");
 
-    let outcome: f64 = view!(bank.get_balance((token.account_id(), alice.account_id()))).unwrap_json();
-    assert_eq!(outcome, 100.0);
-    let outcome: f64 = view!(token.get_balance(alice.account_id())).unwrap_json();
-    assert_eq!(outcome, 0.0);
+    let outcome: U128 = view!(bank.get_balance((token.account_id(), alice.account_id()))).unwrap_json();
+    assert_eq!(u128::from(outcome), 100);
+    let outcome: U128 = view!(token.get_balance(alice.account_id())).unwrap_json();
+    assert_eq!(u128::from(outcome), 0);
 }

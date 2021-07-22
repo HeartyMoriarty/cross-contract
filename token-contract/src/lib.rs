@@ -1,19 +1,20 @@
 use near_sdk::borsh::{self, BorshDeserialize, BorshSerialize};
-use near_sdk::{env, near_bindgen, AccountId, Promise, ext_contract};
+use near_sdk::{env, near_bindgen, AccountId, Promise, ext_contract, json_types::U128};
 use near_sdk::collections::{LookupMap, LookupSet};
 
 #[ext_contract(bank)]
 pub trait Bank {
-    fn deposit(&mut self, acc_id: AccountId, value: f64);
-    fn withdraw(&mut self, acc_id: AccountId, value: f64);
+    fn deposit(&mut self, acc_id: AccountId, value: u128);
+    fn withdraw(&mut self, acc_id: AccountId, value: u128);
 }
 
 #[near_bindgen]
 #[derive(BorshDeserialize, BorshSerialize)]
 pub struct FungibleToken {
-    balances:LookupMap<AccountId, f64>,
+    balances:LookupMap<AccountId, u128>,
     owner: AccountId,
-    whitelist: LookupSet<AccountId>
+    whitelist: LookupSet<AccountId>,
+    total_supply: u128
 }
 
 impl Default for FungibleToken {
@@ -28,13 +29,14 @@ impl FungibleToken {
     #[init]
     pub fn new(owner: AccountId) -> Self {
         let mut balances = LookupMap::new(b"b".to_vec());
-        balances.insert(&owner, &0.0);
+        balances.insert(&owner, &0);
         let mut whitelist = LookupSet::new(b"w".to_vec());
         whitelist.insert(&owner);
         Self {
             balances,
             owner,
-            whitelist
+            whitelist,
+            total_supply: 0
         }
     }
 
@@ -54,52 +56,52 @@ impl FungibleToken {
 
     pub fn add_acc(&mut self, acc_id: AccountId) {
         self.assert_owner();
-        self.balances.insert(&acc_id, &0.0);
+        self.balances.insert(&acc_id, &0);
     }
 
     pub fn rm_acc(&mut self, acc_id: AccountId) {
         self.assert_owner();
-        self.balances.insert(&acc_id, &0.0);
+        self.balances.insert(&acc_id, &0);
     }
 
-    pub fn get_balance(&self, acc_id: AccountId) -> f64 {
+    pub fn get_balance(&self, acc_id: AccountId) -> U128 {
         self.assert_account_exists(acc_id.clone());
-        self.balances.get(&acc_id).unwrap_or(0.0)
+        self.balances.get(&acc_id).unwrap_or(0).into()
     }
 
-    pub fn deposit(&mut self, contract_id: AccountId, value: f64) -> Promise {
+    pub fn deposit(&mut self, contract_id: AccountId, value: U128) -> Promise {
         let sender = env::predecessor_account_id();
-        bank::deposit(sender, value, &contract_id, 0, env::prepaid_gas()/4)
+        bank::deposit(sender, u128::from(value), &contract_id, 0, env::prepaid_gas()/4)
     }
 
-    pub fn withdraw(&mut self, acc_id: AccountId, value: f64) -> Promise {
+    pub fn withdraw(&mut self, acc_id: AccountId, value: U128) -> Promise {
         let sender = env::predecessor_account_id();
-        bank::withdraw(sender, value, &acc_id, 0, env::prepaid_gas()/4)
+        bank::withdraw(sender, u128::from(value), &acc_id, 0, env::prepaid_gas()/4)
     }
 
-    pub fn create_value(&mut self, acc_id: AccountId, value: f64) {
+    pub fn create_value(&mut self, acc_id: AccountId, value: U128) {
         self.assert_owner();
-        self.assert_positive(value);
-        let balance = self.balances.get(&acc_id).unwrap_or(0.0);
-        self.balances.insert(&acc_id, &(balance + value));
+        self.assert_positive(u128::from(value));
+        let balance = self.balances.get(&acc_id).unwrap_or(0);
+        self.balances.insert(&acc_id, &(balance + u128::from(value)));
     }
 
-    pub fn add_value(&mut self, acc_id: AccountId, value: f64) {
+    pub fn add_value(&mut self, acc_id: AccountId, value: u128) {
         self.assert_positive(value);
         self.assert_from_whitelist();
-        let balance = self.balances.get(&acc_id).unwrap_or(0.0);
+        let balance = self.balances.get(&acc_id).unwrap_or(0);
         self.balances.insert(&acc_id, &(balance + value));
     }
 
-    pub fn rm_value(&mut self, acc_id: AccountId, value: f64) {
+    pub fn rm_value(&mut self, acc_id: AccountId, value: u128) {
         self.assert_positive(value);
         self.assert_from_whitelist();
         self.assert_has_balance(acc_id.clone(), value);
-        let balance = self.balances.get(&acc_id).unwrap_or(0.0);
+        let balance = self.balances.get(&acc_id).unwrap_or(0);
         self.balances.insert(&acc_id, &(balance - value));
     }
 
-    pub fn send_value(&mut self, receiver: AccountId, value: f64) {
+    pub fn send_value(&mut self, receiver: AccountId, value: u128) {
         let sender = env::predecessor_account_id();
         self.rm_value(sender, value);
         self.add_value(receiver, value);
@@ -115,8 +117,8 @@ impl FungibleToken {
         assert!(self.balances.contains_key(&acc_id), "{} account not in token contract", acc_id);
     }
     
-    fn assert_has_balance(&self, sender: AccountId, value: f64) {
-        let balance = self.balances.get(&sender).unwrap_or(0.0);
+    fn assert_has_balance(&self, sender: AccountId, value: u128) {
+        let balance = self.balances.get(&sender).unwrap_or(0);
         assert!(balance >= value, "{} only has {} tokens", sender, balance);
     }
 
@@ -125,8 +127,8 @@ impl FungibleToken {
         assert!(self.whitelist.contains(&sender), "{} not whitelisted", sender);
     }
 
-    fn assert_positive(&self, value: f64) {
-        assert!(value > 0.0, "Cannot add {}, value must be greater than 0", value);
+    fn assert_positive(&self, value: u128) {
+        assert!(value > 0, "Cannot add {}, value must be greater than 0", value);
     }
 }
 
@@ -239,8 +241,8 @@ mod tests {
         let mut contract = FungibleToken::new(alice());
         contract.add_acc(bob());
         contract.assert_account_exists(bob());
-        contract.add_value(bob(), 100.0);
-        assert_eq!(contract.get_balance(bob()), 100.0);
+        contract.add_value(bob(), 100);
+        assert_eq!(contract.get_balance(bob()), U128(100));
     }
 
     #[test]
@@ -248,9 +250,9 @@ mod tests {
         let context = get_context(vec![], false, alice());
         testing_env!(context);
         let mut contract = FungibleToken::new(alice());
-        contract.add_value(bob(), 100.0);
-        assert_eq!(contract.get_balance(bob()), 100.0);
-        contract.rm_value(bob(), 100.0);
+        contract.add_value(bob(), 100);
+        assert_eq!(contract.get_balance(bob()), U128(100));
+        contract.rm_value(bob(), 100);
     }
 
     #[test]
@@ -258,10 +260,10 @@ mod tests {
         let context = get_context(vec![], false, alice());
         testing_env!(context);
         let mut contract = FungibleToken::new(alice());
-        contract.add_value(alice(), 100.0);
-        contract.send_value(bob(), 50.0);
-        assert_eq!(contract.get_balance(bob()), 50.0);
-        assert_eq!(contract.get_balance(alice()), 50.0);
+        contract.add_value(alice(), 100);
+        contract.send_value(bob(), 50);
+        assert_eq!(contract.get_balance(bob()), U128(50));
+        assert_eq!(contract.get_balance(alice()), U128(50));
     }
 
     #[test]
@@ -270,9 +272,9 @@ mod tests {
         let context = get_context(vec![], false, alice());
         testing_env!(context);
         let mut contract = FungibleToken::new(alice());
-        contract.add_value(bob(), 100.0);
-        contract.send_value(alice(), 50.0);
-        assert_eq!(contract.get_balance(bob()), 100.0);
-        assert_eq!(contract.get_balance(alice()), 0.0);
+        contract.add_value(bob(), 100);
+        contract.send_value(alice(), 50);
+        assert_eq!(contract.get_balance(bob()), U128(100));
+        assert_eq!(contract.get_balance(alice()), U128(0));
     }
 }

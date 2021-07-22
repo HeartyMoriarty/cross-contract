@@ -1,18 +1,18 @@
 use near_sdk::borsh::{self, BorshDeserialize, BorshSerialize};
-use near_sdk::{env, near_bindgen, AccountId, Promise, ext_contract};
+use near_sdk::{env, near_bindgen, AccountId, Promise, ext_contract, json_types::U128};
 use near_sdk::collections::{UnorderedMap, LookupSet};
 
 #[ext_contract(token)]
 pub trait FungibleToken {
-    fn rm_value(&mut self, acc_id: AccountId, value: f64);
-    fn add_value(&mut self, acc_id: AccountId, value: f64);
+    fn rm_value(&mut self, acc_id: AccountId, value: u128);
+    fn add_value(&mut self, acc_id: AccountId, value: u128);
 }
 
 #[near_bindgen]
 #[derive(BorshDeserialize, BorshSerialize)]
 pub struct Bank {
     // (AccountId, AccountId) = (protocolId, userId)
-    balances: UnorderedMap<(AccountId, AccountId), f64>,
+    balances: UnorderedMap<(AccountId, AccountId), u128>,
     owner:  AccountId,
     whitelist: LookupSet<AccountId>
 }
@@ -49,24 +49,24 @@ impl Bank {
         self.whitelist.remove(&acc_id);
     }
 
-    pub fn get_balance(&self, contract_acc_id: (AccountId, AccountId)) -> f64 {
-        self.balances.get(&contract_acc_id).unwrap_or(0.0)
+    pub fn get_balance(&self, contract_acc_id: (AccountId, AccountId)) -> U128 {
+        self.balances.get(&contract_acc_id).unwrap_or(0).into()
     }
 
-    pub fn deposit(&mut self, acc_id: AccountId, value: f64) -> Promise {
+    pub fn deposit(&mut self, acc_id: AccountId, value: u128) -> Promise {
         self.assert_from_whitelist();
         let contract_acc_id = (env::predecessor_account_id(), acc_id.clone());
-        let curr_bal = self.balances.get(&contract_acc_id).unwrap_or(0.0);         
+        let curr_bal = self.balances.get(&contract_acc_id).unwrap_or(0);         
         self.balances.insert(&contract_acc_id, &(curr_bal + value));
         token::rm_value(acc_id, value, &env::predecessor_account_id(), 0, env::prepaid_gas()/4)
     }
 
-    pub fn withdraw(&mut self, acc_id: AccountId, value: f64) -> Promise {
+    pub fn withdraw(&mut self, acc_id: AccountId, value: u128) -> Promise {
         self.assert_from_whitelist();
         let contract_acc_id = (env::predecessor_account_id(), acc_id.clone());
-        self.assert_has_balance(contract_acc_id.clone(), value);
-        let curr_bal = self.balances.get(&contract_acc_id).unwrap_or(0.0);         
-        self.balances.insert(&contract_acc_id, &(curr_bal - value));
+        self.assert_has_balance(contract_acc_id.clone(), u128::from(value));
+        let curr_bal = self.balances.get(&contract_acc_id).unwrap_or(0);         
+        self.balances.insert(&contract_acc_id, &(curr_bal - u128::from(value)));
         token::add_value(acc_id, value, &env::predecessor_account_id(), 0, env::prepaid_gas()/4)
     }
 }
@@ -77,8 +77,8 @@ impl Bank {
         assert_eq!(env::predecessor_account_id(), self.owner, "only callable by owner");
     }
 
-    fn assert_has_balance(&self, contract_acc_id: (AccountId, AccountId), value: f64) {
-        let balance = self.balances.get(&contract_acc_id).unwrap_or(0.0);
+    fn assert_has_balance(&self, contract_acc_id: (AccountId, AccountId), value: u128) {
+        let balance = self.balances.get(&contract_acc_id).unwrap_or(0);
         assert!(balance >= value, "{} only has {} tokens", &contract_acc_id.1, balance);
     }
 
@@ -177,8 +177,8 @@ mod tests {
         testing_env!(context);
         let mut contract = Bank::new(alice());
         let contract_acc_id = (token(), alice());
-        contract.deposit(alice(), 100.0);
-        assert_eq!(contract.get_balance(contract_acc_id), 0.0);
+        contract.deposit(alice(), 100);
+        assert_eq!(contract.get_balance(contract_acc_id), U128(0));
     }
 
     #[test]
@@ -189,9 +189,9 @@ mod tests {
         contract.wl_add_acc(token());
         let context = get_context(vec![], false, token());
         testing_env!(context);
-        contract.deposit(alice(), 100.0);
+        contract.deposit(alice(), 100);
         let contract_acc_id = (token(), alice());
-        assert_eq!(contract.get_balance(contract_acc_id), 100.0);
+        assert_eq!(contract.get_balance(contract_acc_id), U128(100));
     }
 
     #[test]
@@ -202,11 +202,11 @@ mod tests {
         contract.wl_add_acc(token());
         let context = get_context(vec![], false, token());
         testing_env!(context);
-        contract.deposit(bob(), 100.0);
+        contract.deposit(bob(), 100);
         let contract_acc_id = (token(), bob());
-        assert_eq!(contract.get_balance(contract_acc_id.clone()), 100.0);
-        contract.withdraw(bob(), 50.0);
-        assert_eq!(contract.get_balance(contract_acc_id), 50.0);
+        assert_eq!(contract.get_balance(contract_acc_id.clone()), U128(100));
+        contract.withdraw(bob(), 50);
+        assert_eq!(contract.get_balance(contract_acc_id), U128(50));
     }
 
     #[test]
@@ -218,10 +218,10 @@ mod tests {
         contract.wl_add_acc(token());
         let context = get_context(vec![], false, token());
         testing_env!(context);
-        contract.deposit(bob(), 100.0);
+        contract.deposit(bob(), 100);
         let contract_acc_id = (token(), bob());
-        assert_eq!(contract.get_balance(contract_acc_id.clone()), 100.0);
-        contract.withdraw(bob(), 200.0);
-        assert_eq!(contract.get_balance(contract_acc_id), 100.0);
+        assert_eq!(contract.get_balance(contract_acc_id.clone()), U128(100));
+        contract.withdraw(bob(), 200);
+        assert_eq!(contract.get_balance(contract_acc_id), U128(100));
     }
 }
