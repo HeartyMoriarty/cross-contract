@@ -56,6 +56,10 @@ pub fn init() -> (UserAccount, ContractAccount<BankContract>, ContractAccount<Fu
     );
     call!(
         root,
+        token.wl_add_acc(bank.account_id())
+    );
+    call!(
+        root,
         bank.wl_add_acc(token.account_id())
     );
     call!(
@@ -86,6 +90,32 @@ fn send_deposit() {
     .assert_success();
 
     let outcome: f64 = view!(bank.get_balance((token.account_id(), alice.account_id()))).unwrap_json();
+    assert_eq!(outcome, 100.0);
+}
+
+#[test]
+#[should_panic(expected = "alice only has 100 tokens")]
+fn invalid_send_deposit() {
+    let (root, bank, token, alice, _bob) = init();
+
+    call!(
+        root,
+        token.create_value(alice.account_id(), 100.0)
+    )
+    .assert_success();
+
+    let outcome: f64 = view!(token.get_balance(alice.account_id())).unwrap_json();
+    assert_eq!(outcome, 100.0);
+
+    call!(
+        alice,
+        token.deposit(bank.account_id(), 200.0)
+    )
+    .assert_success();
+
+    let outcome: f64 = view!(bank.get_balance((token.account_id(), alice.account_id()))).unwrap_json();
+    assert_eq!(outcome, 0.0);
+    let outcome: f64 = view!(token.get_balance(alice.account_id())).unwrap_json();
     assert_eq!(outcome, 100.0);
 }
 
@@ -123,4 +153,41 @@ fn send_withdrawal() {
     assert_eq!(outcome, 0.0);
     let outcome: f64 = view!(token.get_balance(alice.account_id())).unwrap_json();
     assert_eq!(outcome, 100.0);
+}
+
+#[test]
+fn invalid_send_withdrawal() {
+    let (root, bank, token, alice, _bob) = init();
+
+    call!(
+        root,
+        token.create_value(alice.account_id(), 100.0)
+    )
+    .assert_success();
+
+    let outcome: f64 = view!(token.get_balance(alice.account_id())).unwrap_json();
+    assert_eq!(outcome, 100.0);
+
+    call!(
+        alice,
+        token.deposit(bank.account_id(), 100.0)
+    )
+    .assert_success();
+
+    let outcome: f64 = view!(bank.get_balance((token.account_id(), alice.account_id()))).unwrap_json();
+    assert_eq!(outcome, 100.0);
+    let outcome: f64 = view!(token.get_balance(alice.account_id())).unwrap_json();
+    assert_eq!(outcome, 0.0);
+
+    let res = call!(
+        alice,
+        token.withdraw(bank.account_id(), 200.0)
+    );
+
+    assert!(!res.is_ok(), "alice only has 100 tokens");
+
+    let outcome: f64 = view!(bank.get_balance((token.account_id(), alice.account_id()))).unwrap_json();
+    assert_eq!(outcome, 100.0);
+    let outcome: f64 = view!(token.get_balance(alice.account_id())).unwrap_json();
+    assert_eq!(outcome, 0.0);
 }

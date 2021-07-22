@@ -1,6 +1,12 @@
 use near_sdk::borsh::{self, BorshDeserialize, BorshSerialize};
-use near_sdk::{env, near_bindgen, AccountId};
+use near_sdk::{env, near_bindgen, AccountId, Promise, ext_contract};
 use near_sdk::collections::{UnorderedMap, LookupSet};
+
+#[ext_contract(token)]
+pub trait FungibleToken {
+    fn rm_value(&mut self, acc_id: AccountId, value: f64);
+    fn add_value(&mut self, acc_id: AccountId, value: f64);
+}
 
 #[near_bindgen]
 #[derive(BorshDeserialize, BorshSerialize)]
@@ -47,20 +53,21 @@ impl Bank {
         self.balances.get(&contract_acc_id).unwrap_or(0.0)
     }
 
-    pub fn deposit(&mut self, acc_id: AccountId, value: f64) {
+    pub fn deposit(&mut self, acc_id: AccountId, value: f64) -> Promise {
         self.assert_from_whitelist();
-        let contract_acc_id = (env::predecessor_account_id(), acc_id);
+        let contract_acc_id = (env::predecessor_account_id(), acc_id.clone());
         let curr_bal = self.balances.get(&contract_acc_id).unwrap_or(0.0);         
         self.balances.insert(&contract_acc_id, &(curr_bal + value));
+        token::rm_value(acc_id, value, &env::predecessor_account_id(), 0, env::prepaid_gas()/4)
     }
 
-    pub fn withdraw(&mut self, acc_id: AccountId, value: f64) {
+    pub fn withdraw(&mut self, acc_id: AccountId, value: f64) -> Promise {
         self.assert_from_whitelist();
-        let contract_acc_id = (env::predecessor_account_id(), acc_id);
+        let contract_acc_id = (env::predecessor_account_id(), acc_id.clone());
         self.assert_has_balance(contract_acc_id.clone(), value);
         let curr_bal = self.balances.get(&contract_acc_id).unwrap_or(0.0);         
         self.balances.insert(&contract_acc_id, &(curr_bal - value));
-        // FINISH WITH X CONTRACT CALL
+        token::add_value(acc_id, value, &env::predecessor_account_id(), 0, env::prepaid_gas()/4)
     }
 }
 
@@ -72,7 +79,7 @@ impl Bank {
 
     fn assert_has_balance(&self, contract_acc_id: (AccountId, AccountId), value: f64) {
         let balance = self.balances.get(&contract_acc_id).unwrap_or(0.0);
-        assert!(balance >= value, "could not withdraw {}, only {} in tha bank for {}", value, balance, &contract_acc_id.1);
+        assert!(balance >= value, "{} only has {} tokens", &contract_acc_id.1, balance);
     }
 
     fn assert_from_whitelist(&self) {
@@ -188,7 +195,7 @@ mod tests {
     }
 
     #[test]
-    fn withdraw_from_whitelisted_acc() {
+    fn withdraw_to_whitelisted_acc() {
         let context = get_context(vec![], false, alice());
         testing_env!(context);
         let mut contract = Bank::new(alice());
@@ -200,5 +207,21 @@ mod tests {
         assert_eq!(contract.get_balance(contract_acc_id.clone()), 100.0);
         contract.withdraw(bob(), 50.0);
         assert_eq!(contract.get_balance(contract_acc_id), 50.0);
+    }
+
+    #[test]
+    #[should_panic(expected = "bob only has 100 tokens")]
+    fn withdraw_too_much() {
+        let context = get_context(vec![], false, alice());
+        testing_env!(context);
+        let mut contract = Bank::new(alice());
+        contract.wl_add_acc(token());
+        let context = get_context(vec![], false, token());
+        testing_env!(context);
+        contract.deposit(bob(), 100.0);
+        let contract_acc_id = (token(), bob());
+        assert_eq!(contract.get_balance(contract_acc_id.clone()), 100.0);
+        contract.withdraw(bob(), 200.0);
+        assert_eq!(contract.get_balance(contract_acc_id), 100.0);
     }
 }
