@@ -128,7 +128,7 @@ mod tests {
     fn owner_set_up() {
         let context = get_context(vec![], false, alice());
         testing_env!(context);
-        let mut contract = Bank::new(alice());
+        let contract = Bank::new(alice());
         contract.assert_owner();
     }
 

@@ -122,10 +122,6 @@ mod tests {
         "bob".to_string()
     }
 
-    fn token() -> String {
-        "token".to_string()
-    }
-
     fn get_context(input: Vec<u8>, is_view: bool, sender: AccountId) -> VMContext {
         VMContext {
             current_account_id: "bank_hoster.testnet".to_string(),
@@ -151,7 +147,7 @@ mod tests {
     fn owner_set_up() {
         let context = get_context(vec![], false, alice());
         testing_env!(context);
-        let mut contract = FungibleToken::new(alice());
+        let contract = FungibleToken::new(alice());
         contract.assert_owner();
     }
 
