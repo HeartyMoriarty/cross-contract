@@ -831,7 +831,7 @@ dependencies = [
  "ed25519",
  "rand 0.7.3",
  "serde",
- "sha2 0.9.5",
+ "sha2",
  "zeroize",
 ]
 
@@ -924,12 +924,6 @@ name = "event-listener"
 version = "2.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f7531096570974c3a9dcf9e4b8e1cede1ec26cf5046219fb3b9d897503b9be59"
-
-[[package]]
-name = "fake-simd"
-version = "0.1.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e88a8acf291dafb59c2d96e8f59828f3838bb1a70398823ade51a84de6a6deed"
 
 [[package]]
 name = "fallible-iterator"
@@ -1504,6 +1498,14 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0debeb9fcf88823ea64d64e4a815ab1643f33127d995978e099942ce38f25238"
 
 [[package]]
+name = "near-contract-standards"
+version = "3.0.0-pre.3"
+source = "git+https://github.com/near/near-sdk-rs.git?rev=249dacdcd3fd34bc00f0895a275f33f05cd910c1#249dacdcd3fd34bc00f0895a275f33f05cd910c1"
+dependencies = [
+ "near-sdk",
+]
+
+[[package]]
 name = "near-crypto"
 version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1578,7 +1580,7 @@ dependencies = [
  "regex",
  "serde",
  "serde_json",
- "sha2 0.9.5",
+ "sha2",
  "smart-default",
  "validator",
 ]
@@ -1598,7 +1600,7 @@ dependencies = [
  "num-rational",
  "serde",
  "serde_json",
- "sha2 0.9.5",
+ "sha2",
 ]
 
 [[package]]
@@ -1616,7 +1618,7 @@ dependencies = [
  "num-rational",
  "serde",
  "serde_json",
- "sha2 0.9.5",
+ "sha2",
 ]
 
 [[package]]
@@ -1808,7 +1810,7 @@ dependencies = [
  "near-runtime-utils 3.0.0",
  "near-vm-errors 3.0.0",
  "serde",
- "sha2 0.8.2",
+ "sha2",
  "sha3",
 ]
 
@@ -1826,7 +1828,7 @@ dependencies = [
  "near-runtime-utils 4.0.0-pre.1",
  "near-vm-errors 4.0.0-pre.1",
  "serde",
- "sha2 0.8.2",
+ "sha2",
  "sha3",
 ]
 
@@ -2599,18 +2601,6 @@ dependencies = [
 
 [[package]]
 name = "sha2"
-version = "0.8.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a256f46ea78a0c0d9ff00077504903ac881a1dafdc20da66545699e7776b3e69"
-dependencies = [
- "block-buffer 0.7.3",
- "digest 0.8.1",
- "fake-simd",
- "opaque-debug 0.2.3",
-]
-
-[[package]]
-name = "sha2"
 version = "0.9.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b362ae5752fd2137731f9fa25fd4d9058af34666ca1966fb969119cc35719f12"
@@ -2841,6 +2831,7 @@ checksum = "cda74da7e1a664f795bb1f8a87ec406fb89a02522cf6e50620d016add6dbbf5c"
 name = "token-contract"
 version = "0.1.0"
 dependencies = [
+ "near-contract-standards",
  "near-sdk",
 ]
 

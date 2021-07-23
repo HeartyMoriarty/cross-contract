@@ -49,7 +49,7 @@ impl Bank {
         self.whitelist.remove(&acc_id);
     }
 
-    pub fn get_balance(&self, contract_acc_id: (AccountId, AccountId)) -> U128 {
+    pub fn balance_of(&self, contract_acc_id: (AccountId, AccountId)) -> U128 {
         self.balances.get(&contract_acc_id).unwrap_or(0).into()
     }
 
@@ -178,7 +178,7 @@ mod tests {
         let mut contract = Bank::new(alice());
         let contract_acc_id = (token(), alice());
         contract.deposit(alice(), 100);
-        assert_eq!(contract.get_balance(contract_acc_id), U128(0));
+        assert_eq!(contract.balance_of(contract_acc_id), U128(0));
     }
 
     #[test]
@@ -191,7 +191,7 @@ mod tests {
         testing_env!(context);
         contract.deposit(alice(), 100);
         let contract_acc_id = (token(), alice());
-        assert_eq!(contract.get_balance(contract_acc_id), U128(100));
+        assert_eq!(contract.balance_of(contract_acc_id), U128(100));
     }
 
     #[test]
@@ -204,9 +204,9 @@ mod tests {
         testing_env!(context);
         contract.deposit(bob(), 100);
         let contract_acc_id = (token(), bob());
-        assert_eq!(contract.get_balance(contract_acc_id.clone()), U128(100));
+        assert_eq!(contract.balance_of(contract_acc_id.clone()), U128(100));
         contract.withdraw(bob(), 50);
-        assert_eq!(contract.get_balance(contract_acc_id), U128(50));
+        assert_eq!(contract.balance_of(contract_acc_id), U128(50));
     }
 
     #[test]
@@ -220,8 +220,8 @@ mod tests {
         testing_env!(context);
         contract.deposit(bob(), 100);
         let contract_acc_id = (token(), bob());
-        assert_eq!(contract.get_balance(contract_acc_id.clone()), U128(100));
+        assert_eq!(contract.balance_of(contract_acc_id.clone()), U128(100));
         contract.withdraw(bob(), 200);
-        assert_eq!(contract.get_balance(contract_acc_id), U128(100));
+        assert_eq!(contract.balance_of(contract_acc_id), U128(100));
     }
 }

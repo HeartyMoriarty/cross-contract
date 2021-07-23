@@ -9,7 +9,7 @@ near_sdk_sim::lazy_static_include::lazy_static_include_bytes! {
     BANK_WASM_BYTES => "res/simple_bank.wasm",
 }
 
-use token_contract::FungibleTokenContract;
+use token_contract::TokenContract;
 use simple_bank::BankContract;
 
 const TOKEN_ID: &str = "token";
@@ -17,7 +17,7 @@ const BANK_ID: &str = "bank";
 
 const STORAGE_AMOUNT: u128 = 10000000000000000000000000000000;
 
-pub fn init() -> (UserAccount, ContractAccount<BankContract>, ContractAccount<FungibleTokenContract>, UserAccount, UserAccount) {
+pub fn init() -> (UserAccount, ContractAccount<BankContract>, ContractAccount<TokenContract>, UserAccount, UserAccount) {
     // Use `None` for default genesis configuration; more info below
     let root = init_simulator(None);
 
@@ -32,7 +32,7 @@ pub fn init() -> (UserAccount, ContractAccount<BankContract>, ContractAccount<Fu
     );
 
     let token = deploy!(
-        contract: FungibleTokenContract,
+        contract: TokenContract,
         contract_id: TOKEN_ID,
         bytes: &TOKEN_WASM_BYTES,
         signer_account: root,
@@ -81,7 +81,7 @@ fn send_deposit() {
     )
     .assert_success();
 
-    let outcome: U128 = view!(token.get_balance(alice.account_id())).unwrap_json();
+    let outcome: U128 = view!(token.balance_of(alice.account_id())).unwrap_json();
     assert_eq!(u128::from(outcome), 100);
 
     call!(
@@ -90,7 +90,7 @@ fn send_deposit() {
     )
     .assert_success();
 
-    let outcome: U128 = view!(bank.get_balance((token.account_id(), alice.account_id()))).unwrap_json();
+    let outcome: U128 = view!(bank.balance_of((token.account_id(), alice.account_id()))).unwrap_json();
     assert_eq!(u128::from(outcome), 100);
 }
 
@@ -105,7 +105,7 @@ fn invalid_send_deposit() {
     )
     .assert_success();
 
-    let outcome: U128 = view!(token.get_balance(alice.account_id())).unwrap_json();
+    let outcome: U128 = view!(token.balance_of(alice.account_id())).unwrap_json();
     assert_eq!(u128::from(outcome), 100);
 
     call!(
@@ -114,9 +114,9 @@ fn invalid_send_deposit() {
     )
     .assert_success();
 
-    let outcome: U128 = view!(bank.get_balance((token.account_id(), alice.account_id()))).unwrap_json();
+    let outcome: U128 = view!(bank.balance_of((token.account_id(), alice.account_id()))).unwrap_json();
     assert_eq!(u128::from(outcome), 0);
-    let outcome: U128 = view!(token.get_balance(alice.account_id())).unwrap_json();
+    let outcome: U128 = view!(token.balance_of(alice.account_id())).unwrap_json();
     assert_eq!(u128::from(outcome), 100);
 }
 
@@ -130,7 +130,7 @@ fn send_withdrawal() {
     )
     .assert_success();
 
-    let outcome: U128 = view!(token.get_balance(alice.account_id())).unwrap_json();
+    let outcome: U128 = view!(token.balance_of(alice.account_id())).unwrap_json();
     assert_eq!(u128::from(outcome), 100);
 
     call!(
@@ -139,9 +139,9 @@ fn send_withdrawal() {
     )
     .assert_success();
 
-    let outcome: U128 = view!(bank.get_balance((token.account_id(), alice.account_id()))).unwrap_json();
+    let outcome: U128 = view!(bank.balance_of((token.account_id(), alice.account_id()))).unwrap_json();
     assert_eq!(u128::from(outcome), 100);
-    let outcome: U128 = view!(token.get_balance(alice.account_id())).unwrap_json();
+    let outcome: U128 = view!(token.balance_of(alice.account_id())).unwrap_json();
     assert_eq!(u128::from(outcome), 0);
 
     call!(
@@ -150,9 +150,9 @@ fn send_withdrawal() {
     )
     .assert_success();
 
-    let outcome: U128 = view!(bank.get_balance((token.account_id(), alice.account_id()))).unwrap_json();
+    let outcome: U128 = view!(bank.balance_of((token.account_id(), alice.account_id()))).unwrap_json();
     assert_eq!(u128::from(outcome), 0);
-    let outcome: U128 = view!(token.get_balance(alice.account_id())).unwrap_json();
+    let outcome: U128 = view!(token.balance_of(alice.account_id())).unwrap_json();
     assert_eq!(u128::from(outcome), 100);
 }
 
@@ -166,7 +166,7 @@ fn invalid_send_withdrawal() {
     )
     .assert_success();
 
-    let outcome: U128 = view!(token.get_balance(alice.account_id())).unwrap_json();
+    let outcome: U128 = view!(token.balance_of(alice.account_id())).unwrap_json();
     assert_eq!(u128::from(outcome), 100);
 
     call!(
@@ -175,9 +175,9 @@ fn invalid_send_withdrawal() {
     )
     .assert_success();
 
-    let outcome: U128 = view!(bank.get_balance((token.account_id(), alice.account_id()))).unwrap_json();
+    let outcome: U128 = view!(bank.balance_of((token.account_id(), alice.account_id()))).unwrap_json();
     assert_eq!(u128::from(outcome), 100);
-    let outcome: U128 = view!(token.get_balance(alice.account_id())).unwrap_json();
+    let outcome: U128 = view!(token.balance_of(alice.account_id())).unwrap_json();
     assert_eq!(u128::from(outcome), 0);
 
     let res = call!(
@@ -187,8 +187,8 @@ fn invalid_send_withdrawal() {
 
     assert!(!res.is_ok(), "alice only has 100 tokens");
 
-    let outcome: U128 = view!(bank.get_balance((token.account_id(), alice.account_id()))).unwrap_json();
+    let outcome: U128 = view!(bank.balance_of((token.account_id(), alice.account_id()))).unwrap_json();
     assert_eq!(u128::from(outcome), 100);
-    let outcome: U128 = view!(token.get_balance(alice.account_id())).unwrap_json();
+    let outcome: U128 = view!(token.balance_of(alice.account_id())).unwrap_json();
     assert_eq!(u128::from(outcome), 0);
 }
