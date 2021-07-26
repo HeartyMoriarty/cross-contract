@@ -35,8 +35,8 @@ impl Token {
         }
     }
 
-    pub fn balance_of(&self, acc_id: AccountId) -> u128 {
-        self.token.internal_unwrap_balance_of(&acc_id)
+    pub fn balance_of(&self, acc_id: AccountId) -> U128 {
+        U128(self.token.internal_unwrap_balance_of(&acc_id))
     }
 
     pub fn wl_contains(&mut self, acc_id: &AccountId) -> bool {
@@ -60,6 +60,7 @@ impl Token {
 
     pub fn deposit(&mut self, contract_id: AccountId, value: U128) -> Promise {
         let sender = env::predecessor_account_id();
+        self.assert_has_balance(sender.clone(), u128::from(value));
         bank::deposit(sender, u128::from(value), &contract_id, 0, env::prepaid_gas()/4)
     }
 
@@ -76,15 +77,12 @@ impl Token {
 
     pub fn add_value(&mut self, acc_id: AccountId, value: u128) {
         self.assert_from_whitelist();
-        let balance = self.token.internal_unwrap_balance_of(&acc_id);
-        self.token.internal_deposit(&acc_id, balance + value);
+        self.token.internal_deposit(&acc_id, value);
     }
 
     pub fn rm_value(&mut self, acc_id: AccountId, value: u128) {
         self.assert_from_whitelist();
-        self.assert_has_balance(acc_id.clone(), value);
-        let balance = self.token.internal_unwrap_balance_of(&acc_id);
-        self.token.internal_deposit(&acc_id, balance - value);
+        self.token.internal_withdraw(&acc_id, value);
     }
 
     pub fn transfer(&mut self, receiver: AccountId, value: u128) {
@@ -97,10 +95,10 @@ impl Token {
     fn assert_owner(&self) {
         assert_eq!(env::predecessor_account_id(), self.owner, "only callable by owner");
     }
-    
+
     fn assert_has_balance(&self, acc_id: AccountId, value: u128) {
         let balance = self.token.internal_unwrap_balance_of(&acc_id);
-        assert!(balance >= value, "{} only has {} tokens", acc_id, balance);
+        assert!(balance >= value, "{} only has {} tokens", &acc_id, balance);
     }
 
     fn assert_from_whitelist(&self) {
@@ -189,7 +187,7 @@ mod tests {
         testing_env!(context);
         let mut contract = Token::new(alice());
         contract.add_acc(bob());
-        assert_eq!(contract.token.internal_unwrap_balance_of(&bob()), 0);
+        assert_eq!(u128::from(contract.balance_of(bob())), 0);
     }
 
     #[test]
@@ -207,7 +205,7 @@ mod tests {
         testing_env!(context);
         let mut contract = Token::new(alice());
         contract.add_acc(bob());
-        assert_eq!(contract.token.internal_unwrap_balance_of(&bob()), 0);
+        assert_eq!(u128::from(contract.balance_of(bob())), 0);
     }
 
     #[test]
@@ -217,9 +215,9 @@ mod tests {
         let mut contract = Token::new(alice());
         contract.wl_add_acc(alice());
         contract.add_acc(bob());
-        assert_eq!(contract.token.internal_unwrap_balance_of(&bob()), 0);
+        assert_eq!(u128::from(contract.balance_of(bob())), 0);
         contract.add_value(bob(), 100);
-        assert_eq!(contract.balance_of(bob()), 100);
+        assert_eq!(u128::from(contract.balance_of(bob())), 100);
     }
 
     #[test]
@@ -230,7 +228,7 @@ mod tests {
         contract.wl_add_acc(alice());
         contract.add_acc(bob());
         contract.add_value(bob(), 100);
-        assert_eq!(contract.balance_of(bob()), 100);
+        assert_eq!(u128::from(contract.balance_of(bob())), 100);
         contract.rm_value(bob(), 100);
     }
 
@@ -244,8 +242,8 @@ mod tests {
         contract.add_acc(bob());
         contract.add_value(alice(), 100);
         contract.transfer(bob(), 50);
-        assert_eq!(contract.balance_of(bob()), 50);
-        assert_eq!(contract.balance_of(alice()), 50);
+        assert_eq!(u128::from(contract.balance_of(bob())), 50);
+        assert_eq!(u128::from(contract.balance_of(alice())), 50);
     }
 
     #[test]
@@ -258,7 +256,7 @@ mod tests {
         contract.add_acc(alice());
         contract.add_acc(bob());
         contract.transfer(bob(), 50);
-        assert_eq!(contract.balance_of(bob()), 0);
-        assert_eq!(contract.balance_of(alice()), 50);
+        assert_eq!(u128::from(contract.balance_of(bob())), 0);
+        assert_eq!(u128::from(contract.balance_of(alice())), 50);
     }
 }
