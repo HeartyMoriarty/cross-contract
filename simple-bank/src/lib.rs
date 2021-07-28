@@ -1,11 +1,23 @@
 use near_sdk::borsh::{self, BorshDeserialize, BorshSerialize};
-use near_sdk::{env, near_bindgen, AccountId, Promise, ext_contract, json_types::U128};
+use near_sdk::{env, near_bindgen, AccountId, PromiseOrValue, ext_contract, json_types::U128};
 use near_sdk::collections::{UnorderedMap, LookupSet};
+use near_contract_standards::fungible_token::receiver::FungibleTokenReceiver;
+use serde_json;
+use serde::{Deserialize, Serialize};
 
-#[ext_contract(token)]
+#[derive(Deserialize, Serialize)]
+struct Message {
+    acc_id: AccountId,
+    kind: String
+}
+
+#[ext_contract(ext_token)]
 pub trait FungibleToken {
-    fn rm_value(&mut self, acc_id: AccountId, value: u128);
-    fn add_value(&mut self, acc_id: AccountId, value: u128);
+    fn ft_resolve_transfer(&self, sender_id: AccountId, receiver_id: AccountId, amount: U128) -> PromiseOrValue<U128>;
+}
+
+pub trait FungibleToken {
+    fn ft_resolve_transfer(&self, sender_id: AccountId, receiver_id: AccountId, amount: U128) -> PromiseOrValue<U128>;
 }
 
 #[near_bindgen]
@@ -23,6 +35,24 @@ impl Default for Bank {
     }
 }
 
+impl FungibleTokenReceiver for Bank {
+    fn ft_on_transfer(&mut self, sender_id: AccountId, amount: U128, msg: String) -> PromiseOrValue<U128> {
+        env::log_str("received by bank");
+        self.assert_from_whitelist();
+        let msg: Message = serde_json::from_str(&msg).unwrap();
+        let function = &msg.kind;
+        let acc_id = &msg.acc_id;
+        let contract_user_id = (sender_id, acc_id.clone());
+        let amount = u128::from(amount);
+        match function.as_str() {
+            "deposit" => self.deposit(contract_user_id, amount),
+            "withdrawal" => self.withdraw(contract_user_id, amount),
+            _ => PromiseOrValue::Value(U128(amount))
+
+        }
+    }
+}
+
 #[near_bindgen]
 impl Bank {
 
@@ -34,6 +64,14 @@ impl Bank {
             whitelist: LookupSet::new(b"w".to_vec())
         }
     }
+
+    // pub fn deploy(&self, account_id: AccountId) {
+    //     Promise::new(account_id)
+    //         .create_account()
+    //         .add_full_access_key(env::signer_account_pk())
+    //         .deploy_contract(
+    //         );
+    // }
 
     pub fn wl_contains(&mut self, acc_id: &AccountId) -> bool {
         self.whitelist.contains(&acc_id)
@@ -49,25 +87,26 @@ impl Bank {
         self.whitelist.remove(&acc_id);
     }
 
-    pub fn balance_of(&self, contract_acc_id: (AccountId, AccountId)) -> U128 {
-        self.balances.get(&contract_acc_id).unwrap_or(0).into()
+    pub fn balance_of(&self, contract_user_id: (AccountId, AccountId)) -> U128 {
+        self.balances.get(&contract_user_id).unwrap_or(0).into()
     }
 
-    pub fn deposit(&mut self, acc_id: AccountId, value: u128) -> Promise {
-        self.assert_from_whitelist();
-        let contract_acc_id = (env::predecessor_account_id(), acc_id.clone());
-        let curr_bal = self.balances.get(&contract_acc_id).unwrap_or(0);         
-        self.balances.insert(&contract_acc_id, &(curr_bal + value));
-        token::rm_value(acc_id, value, &env::predecessor_account_id(), 0, env::prepaid_gas()/4)
+    fn deposit(&mut self, contract_user_id: (AccountId, AccountId), amount: u128) -> PromiseOrValue<U128> {
+        env::log_str("depositing");
+        let curr_bal = self.balances.get(&contract_user_id).unwrap_or(0);         
+        self.balances.insert(&contract_user_id, &(curr_bal + amount));
+        PromiseOrValue::Value(U128(0))
+        // PromiseOrValue::Promise(ext_token::ft_resolve_transfer(contract_user_id.1, env::signer_account_id(), U128(amount), &contract_user_id.0, 0, env::prepaid_gas()/4))
     }
 
-    pub fn withdraw(&mut self, acc_id: AccountId, value: u128) -> Promise {
+    fn withdraw(&mut self, contract_user_id: (AccountId, AccountId), amount: u128) -> PromiseOrValue<U128> {
+        env::log_str("withdrawing");
         self.assert_from_whitelist();
-        let contract_acc_id = (env::predecessor_account_id(), acc_id.clone());
-        self.assert_has_balance(contract_acc_id.clone(), u128::from(value));
-        let curr_bal = self.balances.get(&contract_acc_id).unwrap_or(0);         
-        self.balances.insert(&contract_acc_id, &(curr_bal - u128::from(value)));
-        token::add_value(acc_id, value, &env::predecessor_account_id(), 0, env::prepaid_gas()/4)
+        self.assert_has_balance(contract_user_id.clone(), u128::from(amount));
+        let curr_bal = self.balances.get(&contract_user_id).unwrap_or(0);         
+        self.balances.insert(&contract_user_id, &(curr_bal - u128::from(amount)));
+        PromiseOrValue::Value(U128(0))
+        // PromiseOrValue::Promise(ext_token::ft_resolve_transfer(env::signer_account_id(), contract_user_id.1, U128(amount), &contract_user_id.0, 0, env::prepaid_gas()/4))
     }
 }
 
@@ -77,9 +116,9 @@ impl Bank {
         assert_eq!(env::predecessor_account_id(), self.owner, "only callable by owner");
     }
 
-    fn assert_has_balance(&self, contract_acc_id: (AccountId, AccountId), value: u128) {
-        let balance = self.balances.get(&contract_acc_id).unwrap_or(0);
-        assert!(balance >= value, "{} only has {} tokens", &contract_acc_id.1, balance);
+    fn assert_has_balance(&self, contract_user_id: (AccountId, AccountId), amount: u128) {
+        let balance = self.balances.get(&contract_user_id).unwrap_or(0);
+        assert!(balance >= amount, "{} only has {} tokens", &contract_user_id.1, balance);
     }
 
     fn assert_from_whitelist(&self) {
@@ -92,25 +131,20 @@ impl Bank {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use near_sdk::MockedBlockchain;
+    use near_sdk::test_utils::accounts;
     use near_sdk::{testing_env, VMContext};
 
-    fn alice() -> String {
-        "alice".to_string()
-    }
-
-    fn bob() -> String {
-        "bob".to_string()
-    }
-
-    fn token() -> String {
-        "token".to_string()
+    fn make_transfer_string(kind: String) -> String {
+        let mut msg: String = "{\"kind\":\"".to_owned();
+        msg.push_str(&kind.to_owned());
+        msg.push_str("\"}");
+        msg
     }
 
     // part of writing unit tests is setting up a mock context
     // in this example, this is only needed for env::log in the contract
     // this is also a useful list to peek at when wondering what's available in env::*
-    fn get_context(input: Vec<u8>, is_view: bool, sender: AccountId) -> VMContext {
+    fn get_context(input: Vec<u8>, is_view: bool, sender: String) -> VMContext {
         VMContext {
             current_account_id: "bank_hoster.testnet".to_string(),
             signer_account_id: "robert.testnet".to_string(),
@@ -133,95 +167,95 @@ mod tests {
 
     #[test]
     fn owner_set_up() {
-        let context = get_context(vec![], false, alice());
+        let context = get_context(vec![], false, accounts(0).to_string());
         testing_env!(context);
-        let contract = Bank::new(alice());
+        let contract = Bank::new(accounts(0));
         contract.assert_owner();
     }
 
     #[test]
     fn add_acc_to_whitelist_as_owner() {
-        let context = get_context(vec![], false, alice());
+        let context = get_context(vec![], false, accounts(0).to_string());
         testing_env!(context);
-        let mut contract = Bank::new(alice());
-        contract.wl_add_acc(bob());
-        assert!(contract.wl_contains(&bob()));
+        let mut contract = Bank::new(accounts(0));
+        contract.wl_add_acc(accounts(1));
+        assert!(contract.wl_contains(&accounts(1)));
     }
 
     #[test]
     #[should_panic(expected = "only callable by owner")]
     fn add_acc_to_whitelist_as_other_acc() {
-        let context = get_context(vec![], false, bob());
+        let context = get_context(vec![], false, accounts(1).to_string());
         testing_env!(context);
-        let mut contract = Bank::new(alice());
-        contract.wl_add_acc(bob());
-        assert!(!contract.wl_contains(&bob()));
+        let mut contract = Bank::new(accounts(0));
+        contract.wl_add_acc(accounts(1));
+        assert!(!contract.wl_contains(&accounts(1)));
 
     }
 
     #[test]
     fn rm_acc_from_whitelist_as_owner() {
-        let context = get_context(vec![], false, alice());
+        let context = get_context(vec![], false, accounts(0).to_string());
         testing_env!(context);
-        let mut contract = Bank::new(alice());
-        contract.wl_add_acc(bob());
-        assert!(contract.wl_contains(&bob()));
-        contract.wl_remove_acc(bob());
-        assert!(!contract.wl_contains(&bob()));
+        let mut contract = Bank::new(accounts(0));
+        contract.wl_add_acc(accounts(1));
+        assert!(contract.wl_contains(&accounts(1)));
+        contract.wl_remove_acc(accounts(1));
+        assert!(!contract.wl_contains(&accounts(1)));
     }
 
     #[test]
-    #[should_panic(expected = "token not whitelisted")]
+    #[should_panic(expected = "charlie not whitelisted")]
     fn deposit_from_non_whitelisted_acc() {
-        let context = get_context(vec![], false, token());
+        let context = get_context(vec![], false, accounts(2).to_string());
         testing_env!(context);
-        let mut contract = Bank::new(alice());
-        let contract_acc_id = (token(), alice());
-        contract.deposit(alice(), 100);
-        assert_eq!(contract.balance_of(contract_acc_id), U128(0));
+        let mut contract = Bank::new(accounts(0));
+        let contract_user_id = (accounts(2), accounts(0));
+        contract.ft_on_transfer(accounts(0), U128(100), make_transfer_string("deposit".to_owned()));
+        assert_eq!(contract.balance_of(contract_user_id), U128(0));
     }
 
     #[test]
     fn deposit_from_whitelisted_acc() {
-        let context = get_context(vec![], false, alice());
+        let context = get_context(vec![], false, accounts(0).to_string());
         testing_env!(context);
-        let mut contract = Bank::new(alice());
-        contract.wl_add_acc(token());
-        let context = get_context(vec![], false, token());
+        let mut contract = Bank::new(accounts(0));
+        contract.wl_add_acc(accounts(2));
+        let context = get_context(vec![], false, accounts(2).to_string());
         testing_env!(context);
-        contract.deposit(alice(), 100);
-        let contract_acc_id = (token(), alice());
-        assert_eq!(contract.balance_of(contract_acc_id), U128(100));
+        contract.ft_on_transfer(accounts(0), U128(100), make_transfer_string("deposit".to_owned()));
+        let contract_user_id = (accounts(2), accounts(0));
+        assert_eq!(contract.balance_of(contract_user_id), U128(100));
     }
 
     #[test]
     fn withdraw_to_whitelisted_acc() {
-        let context = get_context(vec![], false, alice());
+        let context = get_context(vec![], false, accounts(0).to_string());
         testing_env!(context);
-        let mut contract = Bank::new(alice());
-        contract.wl_add_acc(token());
-        let context = get_context(vec![], false, token());
+        let mut contract = Bank::new(accounts(0));
+        contract.wl_add_acc(accounts(2));
+        let context = get_context(vec![], false, accounts(2).to_string());
         testing_env!(context);
-        contract.deposit(bob(), 100);
-        let contract_acc_id = (token(), bob());
-        assert_eq!(contract.balance_of(contract_acc_id.clone()), U128(100));
-        contract.withdraw(bob(), 50);
-        assert_eq!(contract.balance_of(contract_acc_id), U128(50));
+        contract.ft_on_transfer(accounts(1), U128(100), make_transfer_string("deposit".to_owned()));
+        let contract_user_id = (accounts(2), accounts(1));
+        assert_eq!(contract.balance_of(contract_user_id.clone()), U128(100));
+        contract.ft_on_transfer(accounts(1), U128(50), make_transfer_string("withdrawal".to_owned()));
+        assert_eq!(contract.balance_of(contract_user_id), U128(50));
     }
 
     #[test]
     #[should_panic(expected = "bob only has 100 tokens")]
     fn withdraw_too_much() {
-        let context = get_context(vec![], false, alice());
+        let context = get_context(vec![], false, accounts(0).to_string());
         testing_env!(context);
-        let mut contract = Bank::new(alice());
-        contract.wl_add_acc(token());
-        let context = get_context(vec![], false, token());
+        let mut contract = Bank::new(accounts(0));
+        contract.wl_add_acc(accounts(2));
+        let context = get_context(vec![], false, accounts(2).to_string());
         testing_env!(context);
-        contract.deposit(bob(), 100);
-        let contract_acc_id = (token(), bob());
-        assert_eq!(contract.balance_of(contract_acc_id.clone()), U128(100));
-        contract.withdraw(bob(), 200);
-        assert_eq!(contract.balance_of(contract_acc_id), U128(100));
+        contract.ft_on_transfer(accounts(1), U128(100), make_transfer_string("deposit".to_owned()));
+        let contract_user_id = (accounts(2), accounts(1));
+        assert_eq!(contract.balance_of(contract_user_id.clone()), U128(100));
+        contract.ft_on_transfer(accounts(1), U128(200), make_transfer_string("withdrawal".to_owned()));
+        assert_eq!(contract.balance_of(contract_user_id), U128(100));
     }
 }
