@@ -95,16 +95,16 @@ fn send_deposit() {
 
     let res = call!(
         alice,
-        token.transfer(bank.account_id(), U128(100), "deposit".to_owned()),
+        token.transfer(bank.account_id(), U128(100)),
         deposit = 1
     );
     println!("{:?}", res);
     res.assert_success();
 
-    // let outcome: U128 = view!(token.balance_of(bank.account_id())).unwrap_json();
-    // assert_eq!(u128::from(outcome), 100);
+    let outcome: U128 = view!(token.balance_of(bank.account_id())).unwrap_json();
+    assert_eq!(u128::from(outcome), 100);
 
-    // let outcome: U128 = view!(bank.balance_of((token.account_id(), alice.account_id()))).unwrap_json();
+    // let outcome: U128 = view!(bank.balance_of(alice.account_id())).unwrap_json();
     // assert_eq!(u128::from(outcome), 100);
     // let outcome: U128 = view!(token.balance_of(alice.account_id())).unwrap_json();
     // assert_eq!(u128::from(outcome), 0);

@@ -1,6 +1,7 @@
 use near_sdk::borsh::{self, BorshDeserialize, BorshSerialize};
 use near_contract_standards::fungible_token::{FungibleToken};
-use near_sdk::{env, near_bindgen, AccountId, PromiseOrValue, json_types::U128};
+use near_contract_standards::fungible_token::receiver::FungibleTokenReceiver;
+use near_sdk::{env, log, near_bindgen, AccountId, PromiseOrValue, json_types::U128};
 use near_sdk::collections::{LookupSet};
 
 near_contract_standards::impl_fungible_token_core!(Token, token);
@@ -17,6 +18,18 @@ pub struct Token {
 impl Default for Token {
     fn default() -> Self {
         env::panic("bonk".as_bytes())
+    }
+}
+
+#[near_bindgen]
+impl FungibleTokenReceiver for Token {
+    // sender = user, predecessor = token
+    fn ft_on_transfer(&mut self, sender_id: AccountId, amount: U128, msg: String) -> PromiseOrValue<U128> {
+        let acc_id = env::predecessor_account_id();
+        log!("recieved deposit of {} from {} for {}", u128::from(amount), acc_id, sender_id);
+        self.assert_from_whitelist(acc_id.clone());
+        self.token.internal_transfer(&acc_id, &sender_id, u128::from(amount), None);
+        PromiseOrValue::Value(U128(0))
     }
 }
 
@@ -55,19 +68,11 @@ impl Token {
         self.token.internal_register_account(&acc_id);
     }
 
-    fn make_transfer_string(&self, kind: String) -> String {
-        let mut msg: String = "{\"kind\":\"".to_owned();
-        msg.push_str(&kind.to_owned());
-        msg.push_str("\"}");
-        msg
-    }
-
-    // kind = {"deposit","withdrawal"}
+    // TODO: maybe change to ft_transfer_call 
     #[payable]
-    pub fn transfer(&mut self, acc_id: AccountId, amount: U128, kind: String) {
-        let msg = self.make_transfer_string(kind);
-        env::log_str(&msg.to_owned());
-        self.token.ft_transfer_call(acc_id, amount, None, msg);
+    pub fn transfer(&mut self, acc_id: AccountId, amount: U128) {
+        self.assert_from_whitelist(acc_id.clone());
+        self.token.ft_transfer_call(acc_id, amount, None, "nice".to_owned());
     }
 
     pub fn create_amount(&mut self, acc_id: AccountId, amount: U128) {
@@ -84,6 +89,10 @@ impl Token {
 impl Token {
     fn assert_owner(&self) {
         assert_eq!(env::predecessor_account_id(), self.owner, "only callable by owner");
+    }
+
+    fn assert_from_whitelist(&self, acc_id: AccountId) {
+        assert!(self.whitelist.contains(&acc_id), "{} not whitelisted", acc_id);
     }
 }
 
