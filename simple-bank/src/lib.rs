@@ -7,7 +7,6 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize, Serialize)]
 struct Message {
-    acc_id: AccountId,
     kind: String
 }
 
@@ -35,16 +34,18 @@ impl Default for Bank {
     }
 }
 
+#[near_bindgen]
 impl FungibleTokenReceiver for Bank {
+    // sender = predecessor (token), msg {user, transaction type}
     fn ft_on_transfer(&mut self, sender_id: AccountId, amount: U128, msg: String) -> PromiseOrValue<U128> {
-        env::log_str("received by bank");
+        let log_msg = format!("received {:?} from {} through {} to bank", amount, sender_id, env::predecessor_account_id());
+        env::log_str(&log_msg);
         self.assert_from_whitelist();
         let msg: Message = serde_json::from_str(&msg).unwrap();
-        let function = &msg.kind;
-        let acc_id = &msg.acc_id;
-        let contract_user_id = (sender_id, acc_id.clone());
+        let tx_type = &msg.kind;
+        let contract_user_id = (env::predecessor_account_id(), sender_id.clone());
         let amount = u128::from(amount);
-        match function.as_str() {
+        match tx_type.as_str() {
             "deposit" => self.deposit(contract_user_id, amount),
             "withdrawal" => self.withdraw(contract_user_id, amount),
             _ => PromiseOrValue::Value(U128(amount))
@@ -87,7 +88,8 @@ impl Bank {
         self.whitelist.remove(&acc_id);
     }
 
-    pub fn balance_of(&self, contract_user_id: (AccountId, AccountId)) -> U128 {
+    pub fn balance_of(&self, contract_id: AccountId, user_id: AccountId) -> U128 {
+        let contract_user_id = (contract_id, user_id);
         self.balances.get(&contract_user_id).unwrap_or(0).into()
     }
 
@@ -102,9 +104,9 @@ impl Bank {
     fn withdraw(&mut self, contract_user_id: (AccountId, AccountId), amount: u128) -> PromiseOrValue<U128> {
         env::log_str("withdrawing");
         self.assert_from_whitelist();
-        self.assert_has_balance(contract_user_id.clone(), u128::from(amount));
+        self.assert_has_balance(contract_user_id.clone(), amount);
         let curr_bal = self.balances.get(&contract_user_id).unwrap_or(0);         
-        self.balances.insert(&contract_user_id, &(curr_bal - u128::from(amount)));
+        self.balances.insert(&contract_user_id, &(curr_bal - amount));
         PromiseOrValue::Value(U128(0))
         // PromiseOrValue::Promise(ext_token::ft_resolve_transfer(env::signer_account_id(), contract_user_id.1, U128(amount), &contract_user_id.0, 0, env::prepaid_gas()/4))
     }
@@ -210,26 +212,14 @@ mod tests {
         let context = get_context(vec![], false, accounts(2).to_string());
         testing_env!(context);
         let mut contract = Bank::new(accounts(0));
-        let contract_user_id = (accounts(2), accounts(0));
         contract.ft_on_transfer(accounts(0), U128(100), make_transfer_string("deposit".to_owned()));
-        assert_eq!(contract.balance_of(contract_user_id), U128(0));
+        assert_eq!(contract.balance_of(accounts(2), accounts(0)), U128(0));
     }
 
     #[test]
     fn deposit_from_whitelisted_acc() {
-        let context = get_context(vec![], false, accounts(0).to_string());
-        testing_env!(context);
-        let mut contract = Bank::new(accounts(0));
-        contract.wl_add_acc(accounts(2));
-        let context = get_context(vec![], false, accounts(2).to_string());
-        testing_env!(context);
-        contract.ft_on_transfer(accounts(0), U128(100), make_transfer_string("deposit".to_owned()));
-        let contract_user_id = (accounts(2), accounts(0));
-        assert_eq!(contract.balance_of(contract_user_id), U128(100));
-    }
-
-    #[test]
-    fn withdraw_to_whitelisted_acc() {
+        // alice (bank) init then whitelists charlie(token)
+        // bob sends bank 100 through charlie(token) sends deposit req of 100 to 
         let context = get_context(vec![], false, accounts(0).to_string());
         testing_env!(context);
         let mut contract = Bank::new(accounts(0));
@@ -237,10 +227,25 @@ mod tests {
         let context = get_context(vec![], false, accounts(2).to_string());
         testing_env!(context);
         contract.ft_on_transfer(accounts(1), U128(100), make_transfer_string("deposit".to_owned()));
-        let contract_user_id = (accounts(2), accounts(1));
-        assert_eq!(contract.balance_of(contract_user_id.clone()), U128(100));
+        assert_eq!(contract.balance_of(accounts(2), accounts(1)), U128(100));
+    }
+
+    #[test]
+    fn withdraw_to_whitelisted_acc() {
+        //["alice", "bob", "charlie", "danny", "eugene", "fargo"]
+        // alice hosts bank, charlie becomes token and whitelisted to bank,
+        // bob sends from charlie(token) 100 deposit
+        // (charlie, bob) used to get balance
+        let context = get_context(vec![], false, accounts(0).to_string());
+        testing_env!(context);
+        let mut contract = Bank::new(accounts(0));
+        contract.wl_add_acc(accounts(2));
+        let context = get_context(vec![], false, accounts(2).to_string());
+        testing_env!(context);
+        contract.ft_on_transfer(accounts(1), U128(100), make_transfer_string("deposit".to_owned()));
+        assert_eq!(contract.balance_of(accounts(2), accounts(1)), U128(100));
         contract.ft_on_transfer(accounts(1), U128(50), make_transfer_string("withdrawal".to_owned()));
-        assert_eq!(contract.balance_of(contract_user_id), U128(50));
+        assert_eq!(contract.balance_of(accounts(2), accounts(1)), U128(50));
     }
 
     #[test]
@@ -253,9 +258,8 @@ mod tests {
         let context = get_context(vec![], false, accounts(2).to_string());
         testing_env!(context);
         contract.ft_on_transfer(accounts(1), U128(100), make_transfer_string("deposit".to_owned()));
-        let contract_user_id = (accounts(2), accounts(1));
-        assert_eq!(contract.balance_of(contract_user_id.clone()), U128(100));
+        assert_eq!(contract.balance_of(accounts(2), accounts(1)), U128(100));
         contract.ft_on_transfer(accounts(1), U128(200), make_transfer_string("withdrawal".to_owned()));
-        assert_eq!(contract.balance_of(contract_user_id), U128(100));
+        assert_eq!(contract.balance_of(accounts(2), accounts(1)), U128(100));
     }
 }

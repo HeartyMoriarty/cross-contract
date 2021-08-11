@@ -55,10 +55,8 @@ impl Token {
         self.token.internal_register_account(&acc_id);
     }
 
-    fn make_transfer_string(&self, acc_id: AccountId, kind: String) -> String {
-        let mut msg: String = "{\"acc_id\":\"".to_owned();
-        msg.push_str(&acc_id.as_str().to_owned());
-        msg.push_str(&"\",\"kind\":\"".to_owned());
+    fn make_transfer_string(&self, kind: String) -> String {
+        let mut msg: String = "{\"kind\":\"".to_owned();
         msg.push_str(&kind.to_owned());
         msg.push_str("\"}");
         msg
@@ -66,10 +64,10 @@ impl Token {
 
     // kind = {"deposit","withdrawal"}
     #[payable]
-    pub fn transfer(&mut self, contract_id: AccountId, amount: U128, kind: String) {
-        let msg = self.make_transfer_string(env::predecessor_account_id(), kind);
+    pub fn transfer(&mut self, acc_id: AccountId, amount: U128, kind: String) {
+        let msg = self.make_transfer_string(kind);
         env::log_str(&msg.to_owned());
-        self.token.ft_transfer_call(contract_id, amount, None, msg);
+        self.token.ft_transfer_call(acc_id, amount, None, msg);
     }
 
     pub fn create_amount(&mut self, acc_id: AccountId, amount: U128) {
@@ -78,35 +76,14 @@ impl Token {
         self.token.internal_deposit(&acc_id, balance + u128::from(amount));
     }
 
-    pub fn add_amount(&mut self, acc_id: AccountId, amount: u128) {
-        self.assert_from_whitelist();
-        self.token.internal_deposit(&acc_id, amount);
-    }
-
-    pub fn rm_amount(&mut self, acc_id: AccountId, amount: u128) {
-        self.assert_from_whitelist();
-        self.token.internal_withdraw(&acc_id, amount);
-    }
-
     pub fn transfer_internal(&mut self, receiver: AccountId, amount: U128) {
-        self.token.internal_transfer(&env::predecessor_account_id(),
-            &receiver, u128::from(amount), None);
+        self.ft_transfer(receiver, amount, None);
     }
 }
 
 impl Token {
     fn assert_owner(&self) {
         assert_eq!(env::predecessor_account_id(), self.owner, "only callable by owner");
-    }
-
-    // fn assert_has_balance(&self, acc_id: AccountId, amount: u128) {
-    //     let balance = self.token.internal_unwrap_balance_of(&acc_id);
-    //     assert!(balance >= amount, "{} only has {} tokens", &acc_id, balance);
-    // }
-
-    fn assert_from_whitelist(&self) {
-        let sender = env::predecessor_account_id();
-        assert!(self.whitelist.contains(&sender), "{} not whitelisted", sender);
     }
 }
 
@@ -128,7 +105,7 @@ mod tests {
             account_balance: 0,
             account_locked_balance: 0,
             storage_usage: 0,
-            attached_deposit: 0,
+            attached_deposit: 1,
             prepaid_gas: 10u64.pow(18),
             random_seed: vec![0, 1, 2],
             is_view,
@@ -204,30 +181,6 @@ mod tests {
     }
 
     #[test]
-    fn whitelisted_account_can_add_amount() {
-        let context = get_context(vec![], false, accounts(0).to_string());
-        testing_env!(context);
-        let mut contract = Token::new(accounts(0));
-        contract.wl_add_acc(accounts(0));
-        contract.add_acc(accounts(1));
-        assert_eq!(u128::from(contract.balance_of(accounts(1))), 0);
-        contract.add_amount(accounts(1), 100);
-        assert_eq!(u128::from(contract.balance_of(accounts(1))), 100);
-    }
-
-    #[test]
-    fn whitelisted_account_can_rm_amount() {
-        let context = get_context(vec![], false, accounts(0).to_string());
-        testing_env!(context);
-        let mut contract = Token::new(accounts(0));
-        contract.wl_add_acc(accounts(0));
-        contract.add_acc(accounts(1));
-        contract.add_amount(accounts(1), 100);
-        assert_eq!(u128::from(contract.balance_of(accounts(1))), 100);
-        contract.rm_amount(accounts(1), 100);
-    }
-
-    #[test]
     fn valid_send_between_users() {
         let context = get_context(vec![], false, accounts(0).to_string());
         testing_env!(context);
@@ -235,7 +188,7 @@ mod tests {
         contract.wl_add_acc(accounts(0));
         contract.add_acc(accounts(0));
         contract.add_acc(accounts(1));
-        contract.add_amount(accounts(0), 100);
+        contract.create_amount(accounts(0), U128(100));
         contract.transfer_internal(accounts(1), U128(50));
         assert_eq!(u128::from(contract.balance_of(accounts(1))), 50);
         assert_eq!(u128::from(contract.balance_of(accounts(0))), 50);
