@@ -70,9 +70,9 @@ impl Token {
 
     // TODO: maybe change to ft_transfer_call 
     #[payable]
-    pub fn transfer(&mut self, acc_id: AccountId, amount: U128) {
+    pub fn transfer(&mut self, acc_id: AccountId, amount: U128) -> PromiseOrValue<U128>{
         self.assert_from_whitelist(acc_id.clone());
-        self.token.ft_transfer_call(acc_id, amount, None, "nice".to_owned());
+        self.token.ft_transfer_call(acc_id, amount, None, "nice".to_string())
     }
 
     pub fn create_amount(&mut self, acc_id: AccountId, amount: U128) {

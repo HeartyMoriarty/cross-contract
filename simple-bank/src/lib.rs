@@ -32,9 +32,9 @@ impl FungibleTokenReceiver for Bank {
     // sender = user, predecessor = token
     fn ft_on_transfer(&mut self, sender_id: AccountId, amount: U128, msg: String) -> PromiseOrValue<U128> {
         let acc_id = env::predecessor_account_id();
-        log!("recieved deposit of {} from {} for {}", u128::from(amount), acc_id, sender_id);
+        // log!("recieved deposit of {} from {} for {}", u128::from(amount), acc_id, sender_id);
         self.assert_from_whitelist(acc_id);
-        self.token.internal_deposit(&sender_id, u128::from(amount));
+        self.token.internal_deposit(&sender_id, amount.into());
         PromiseOrValue::Value(U128(0))
     }
 }

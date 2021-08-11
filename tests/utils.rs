@@ -47,7 +47,7 @@ pub fn init() -> (UserAccount, ContractAccount<BankContract>, ContractAccount<To
         contract_id: BANK_ID,
         bytes: &BANK_WASM_BYTES,
         signer_account: root,
-        init_method: new(token.account_id())
+        init_method: new(root.account_id())
     );
 
     let alice = root.create_user(AccountId::new_unchecked("alice".to_string()), to_yocto("100000"));
@@ -63,6 +63,10 @@ pub fn init() -> (UserAccount, ContractAccount<BankContract>, ContractAccount<To
     call!(
         root,
         token.add_acc(bank.account_id())
+    );
+    call!(
+        root,
+        bank.add_acc(alice.account_id())
     );
     call!(
         root,
