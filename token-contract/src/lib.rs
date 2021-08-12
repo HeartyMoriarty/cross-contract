@@ -26,7 +26,7 @@ impl FungibleTokenReceiver for Token {
     // sender = user, predecessor = token
     fn ft_on_transfer(&mut self, sender_id: AccountId, amount: U128, msg: String) -> PromiseOrValue<U128> {
         let acc_id = env::predecessor_account_id();
-        log!("recieved deposit of {} from {} for {}", u128::from(amount), acc_id, sender_id);
+        log!("recieved deposit of {} from {} for {} with msg {}", u128::from(amount), acc_id, sender_id, msg);
         self.assert_from_whitelist(acc_id.clone());
         self.token.internal_transfer(&acc_id, &sender_id, u128::from(amount), None);
         PromiseOrValue::Value(U128(0))

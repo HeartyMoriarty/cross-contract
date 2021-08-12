@@ -3,15 +3,9 @@ use near_sdk::{env, log, near_bindgen, AccountId, PromiseOrValue, json_types::U1
 use near_sdk::collections::{LookupSet};
 use near_contract_standards::fungible_token::receiver::FungibleTokenReceiver;
 use near_contract_standards::fungible_token::{FungibleToken};
-use serde::{Deserialize, Serialize};
 
 near_contract_standards::impl_fungible_token_core!(Bank, token);
 near_contract_standards::impl_fungible_token_storage!(Bank, token);
-
-// #[ext_contract(ext_token)]
-// pub trait FungibleToken {
-//     fn ft_resolve_transfer(&self, sender_id: AccountId, receiver_id: AccountId, amount: U128) -> PromiseOrValue<U128>;
-// }
 
 #[near_bindgen]
 #[derive(BorshDeserialize, BorshSerialize)]
@@ -32,7 +26,7 @@ impl FungibleTokenReceiver for Bank {
     // sender = user, predecessor = token
     fn ft_on_transfer(&mut self, sender_id: AccountId, amount: U128, msg: String) -> PromiseOrValue<U128> {
         let acc_id = env::predecessor_account_id();
-        // log!("recieved deposit of {} from {} for {}", u128::from(amount), acc_id, sender_id);
+        log!("recieved deposit of {} from {} for {} with msg {}", u128::from(amount), acc_id, sender_id, msg);
         self.assert_from_whitelist(acc_id);
         self.token.internal_deposit(&sender_id, amount.into());
         PromiseOrValue::Value(U128(0))
