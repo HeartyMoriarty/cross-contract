@@ -20,7 +20,9 @@ members = [
 ]
 
 [dev-dependencies]
-near-sdk = { git = "https://github.com/near/near-sdk-rs.git", rev="249dacdcd3fd34bc00f0895a275f33f05cd910c1" }
-near-sdk-sim = { git = "https://github.com/near/near-sdk-rs.git", rev="249dacdcd3fd34bc00f0895a275f33f05cd910c1" }
+near-sdk = { git = "https://github.com/near/near-sdk-rs.git" }
+near-sdk-sim = { git = "https://github.com/near/near-sdk-rs.git" }
 simple-bank = { path = "./simple-bank" }
 token-contract = { path = "./token-contract" }
+serde = "1.0.64"
+serde_json = "1.0.64"
